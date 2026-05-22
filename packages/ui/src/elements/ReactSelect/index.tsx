@@ -16,13 +16,13 @@ import { ShimmerEffect } from '../ShimmerEffect/index.js'
 import { ClearIndicator } from './ClearIndicator/index.js'
 import { Control } from './Control/index.js'
 import { DropdownIndicator } from './DropdownIndicator/index.js'
-import './index.scss'
 import { Input } from './Input/index.js'
 import { generateMultiValueDraggableID, MultiValue } from './MultiValue/index.js'
 import { MultiValueLabel } from './MultiValueLabel/index.js'
 import { MultiValueRemove } from './MultiValueRemove/index.js'
 import { SingleValue } from './SingleValue/index.js'
 import { ValueContainer } from './ValueContainer/index.js'
+import './index.css'
 
 const createOption = (label: string) => ({
   label,
@@ -58,6 +58,7 @@ const SelectAdapter: React.FC<ReactSelectAdapterProps> = (props) => {
     options,
     placeholder = t('general:selectValue'),
     showError,
+    styles: externalStyles,
     value,
   } = props
 
@@ -71,7 +72,22 @@ const SelectAdapter: React.FC<ReactSelectAdapterProps> = (props) => {
     // Remove the default react-select z-index from the menu so that our custom
     // z-index in the "payload-default" css layer can take effect, in such a way
     // that end users can easily override it as with other styles.
-    menu: (rsStyles) => ({ ...rsStyles, zIndex: undefined }),
+    menu: (rsStyles, state) => ({
+      ...rsStyles,
+      zIndex: undefined,
+      ...externalStyles?.menu?.(rsStyles, state),
+    }),
+    // Remove the default react-select min-height so our CSS can control it
+    control: (rsStyles, state) => ({
+      ...rsStyles,
+      minHeight: undefined,
+      ...externalStyles?.control?.(rsStyles, state),
+    }),
+    // Allow external option styles to override emotion defaults
+    option: (rsStyles, state) => ({
+      ...rsStyles,
+      ...externalStyles?.option?.(rsStyles, state),
+    }),
   }
 
   if (!hasMounted) {
@@ -87,6 +103,9 @@ const SelectAdapter: React.FC<ReactSelectAdapterProps> = (props) => {
         {...props}
         className={classes}
         classNamePrefix="rs"
+        classNames={{
+          menu: (state) => (state.placement ? `rs__menu--placement-${state.placement}` : ''),
+        }}
         components={{
           ClearIndicator,
           Control,
@@ -166,6 +185,9 @@ const SelectAdapter: React.FC<ReactSelectAdapterProps> = (props) => {
       {...props}
       className={classes}
       classNamePrefix="rs"
+      classNames={{
+        menu: (state) => (state.placement ? `rs__menu--placement-${state.placement}` : ''),
+      }}
       components={{
         ClearIndicator,
         Control,

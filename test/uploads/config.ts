@@ -8,6 +8,7 @@ import { AdminThumbnailWithSearchQueries } from './collections/AdminThumbnailWit
 import { AdminUploadControl } from './collections/AdminUploadControl/index.js'
 import { AnyImageTypeCollection } from './collections/AnyImageType/index.js'
 import { BulkUploadsCollection } from './collections/BulkUploads/index.js'
+import { BulkUploadsHookErrorCollection } from './collections/BulkUploadsHookError/index.js'
 import { CustomUploadFieldCollection } from './collections/CustomUploadField/index.js'
 import { FileMimeType } from './collections/FileMimeType/index.js'
 import { NoFilesRequired } from './collections/NoFilesRequired/index.js'
@@ -36,6 +37,7 @@ import {
   noRestrictFileMimeTypesSlug,
   noRestrictFileTypesSlug,
   pdfOnlySlug,
+  prefixMediaSlug,
   reduceSlug,
   relationPreviewSlug,
   relationSlug,
@@ -83,6 +85,12 @@ export default buildConfigWithDefaults({
           name: 'hideFileInputOnCreate',
           type: 'upload',
           relationTo: hideFileInputOnCreateSlug,
+        },
+        {
+          name: 'hasManyImage',
+          type: 'upload',
+          relationTo: 'media',
+          hasMany: true,
         },
         {
           type: 'tabs',
@@ -1003,6 +1011,7 @@ export default buildConfigWithDefaults({
       },
     },
     BulkUploadsCollection,
+    BulkUploadsHookErrorCollection,
     SimpleRelationshipCollection,
     FileMimeType,
     {
@@ -1032,8 +1041,7 @@ export default buildConfigWithDefaults({
             height: 200,
             width: 200,
             admin: {
-              disableListFilter: true,
-              disableListColumn: true,
+              disabled: { column: true, filter: true },
             },
           },
           {
@@ -1041,7 +1049,7 @@ export default buildConfigWithDefaults({
             height: 300,
             width: 300,
             admin: {
-              disableListColumn: true,
+              disabled: { column: true },
             },
           },
           {
@@ -1049,8 +1057,7 @@ export default buildConfigWithDefaults({
             height: 400,
             width: 400,
             admin: {
-              disableListColumn: false,
-              disableListFilter: true,
+              disabled: { filter: true },
             },
           },
           {
@@ -1059,6 +1066,18 @@ export default buildConfigWithDefaults({
             width: 300,
           },
         ],
+      },
+    },
+    {
+      slug: prefixMediaSlug,
+      fields: [
+        {
+          name: 'prefix',
+          type: 'text',
+        },
+      ],
+      upload: {
+        staticDir: path.resolve(dirname, './prefix-media'),
       },
     },
   ],

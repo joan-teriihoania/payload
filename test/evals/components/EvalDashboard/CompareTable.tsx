@@ -4,8 +4,10 @@ import React, { useMemo, useState } from 'react'
 
 import type { Audience } from './audience.js'
 import type { EvalEntry, RunSnapshot } from './index.js'
+import type { Variant } from './ResultsTable.js'
 
 import { AUDIENCE_CONFIG, getAudience } from './audience.js'
+import { getVariant } from './ResultsTable.js'
 
 type Props = {
   compareMode: 'run' | 'variant'
@@ -18,10 +20,9 @@ type ComparePair = {
   audience: Audience[]
   baseline?: EvalEntry
   category: string
-  lowPower?: EvalEntry
   question: string
   skill?: EvalEntry
-  type: 'codegen' | 'qa'
+  type: 'codegen'
 }
 
 function AudienceBadges({ audiences }: { audiences: Audience[] }) {
@@ -50,11 +51,11 @@ function AudienceBadges({ audiences }: { audiences: Audience[] }) {
   )
 }
 
-function TypeBadge({ type }: { type: 'codegen' | 'qa' }) {
+function TypeBadge({ type }: { type: 'codegen' }) {
   return (
     <span
       style={{
-        background: type === 'codegen' ? 'var(--theme-elevation-150)' : 'transparent',
+        background: 'var(--theme-elevation-150)',
         border: '1px solid var(--theme-elevation-200)',
         borderRadius: '4px',
         color: 'var(--theme-elevation-700)',
@@ -63,17 +64,9 @@ function TypeBadge({ type }: { type: 'codegen' | 'qa' }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {type === 'codegen' ? 'Codegen' : 'QA'}
+      {type === 'codegen' ? 'Codegen' : null}
     </span>
   )
-}
-
-/** Returns true if the model ID looks like a high-power / flagship model. */
-function isHighPower(modelId: string | undefined): boolean {
-  if (!modelId) {
-    return true // untagged entries predate low-power tracking — treat as high-power
-  }
-  return modelId.includes('gpt-5') || modelId.includes('o3') || modelId.includes('claude-3-5')
 }
 
 type SortKey = 'audience' | 'category' | 'delta' | 'question' | 'type'
@@ -205,24 +198,18 @@ function ExpandedCompareRow({ pair }: { pair: ComparePair }) {
         borderTop: '1px solid var(--theme-elevation-100)',
         display: 'grid',
         gap: '16px',
-        gridTemplateColumns: '1fr 1fr 1fr',
+        gridTemplateColumns: '1fr 1fr',
         padding: '14px 12px',
       }}
     >
       <AnswerColumn
-        color="var(--color-warning-500, #e8a838)"
-        entry={pair.lowPower}
-        label="Low Power (gpt-4o)"
-        missingHint="pnpm run test:eval:low-power"
-      />
-      <AnswerColumn
-        borderLeft
         color="var(--theme-elevation-600)"
         entry={pair.baseline}
         label="Baseline — no skill"
         missingHint="pnpm run test:eval:baseline"
       />
       <AnswerColumn
+        borderLeft
         color="var(--theme-success-700)"
         entry={pair.skill}
         label="With Skill — SKILL.md injected"
@@ -304,10 +291,6 @@ function AnswerColumn({
 }
 
 // ---------------------------------------------------------------------------
-// Mode Toggle — switches between variant comparison and run comparison
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Run Comparison View — compares two versioned run snapshots
 // ---------------------------------------------------------------------------
 
@@ -323,7 +306,7 @@ type RunCategoryRow = {
   passRateCompare: null | number
   totalBase: number
   totalCompare: number
-  type: 'codegen' | 'qa' | 'total'
+  type: 'codegen' | 'total'
 }
 
 function aggregateByCategory(results: RunSnapshot['results']): Map<
@@ -463,14 +446,24 @@ function RunStatCell({
 }
 
 function variantPillStyle(variant: string): { bg: string; color: string } {
-  if (variant === 'baseline') {
-    return { bg: 'var(--theme-elevation-200)', color: 'var(--theme-elevation-700)' }
+  const styles: Record<Variant, { bg: string; color: string }> = {
+    'agent-baseline': {
+      bg: 'var(--theme-elevation-200)',
+      color: 'var(--theme-warning-700)',
+    },
+    'agent-skill': {
+      bg: 'var(--theme-success-100)',
+      color: 'var(--theme-warning-700)',
+    },
+    baseline: { bg: 'var(--theme-elevation-200)', color: 'var(--theme-elevation-700)' },
+    skill: { bg: 'var(--theme-success-100)', color: 'var(--theme-success-700)' },
   }
-  if (variant === 'low-power') {
-    return { bg: 'rgba(232,168,56,0.2)', color: 'var(--color-warning-600, #b97d10)' }
-  }
-  // skill (default)
-  return { bg: 'var(--theme-success-100)', color: 'var(--theme-success-700)' }
+  return (
+    (styles as Record<string, { bg: string; color: string }>)[variant] ?? {
+      bg: 'var(--theme-elevation-100)',
+      color: 'var(--theme-elevation-600)',
+    }
+  )
 }
 
 function RunDiffView({ runs }: { runs: RunSnapshot[] }) {
@@ -498,7 +491,7 @@ function RunDiffView({ runs }: { runs: RunSnapshot[] }) {
     const keys = new Set([...baseMap.keys(), ...compareMap.keys()])
     return Array.from(keys)
       .map((key) => {
-        const [category, type] = key.split(':::') as [string, 'codegen' | 'qa']
+        const [category, type] = key.split(':::') as [string, 'codegen']
         const b = baseMap.get(key)
         const c = compareMap.get(key)
         const passRateBase = b ? b.passed / b.total : null
@@ -825,7 +818,7 @@ function RunDiffView({ runs }: { runs: RunSnapshot[] }) {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {row.type === 'codegen' ? 'Codegen' : 'QA'}
+                  {row.type === 'codegen' ? 'Codegen' : null}
                 </span>
               </div>
               <RunStatCell
@@ -893,10 +886,6 @@ export function CompareTable({
   const [showOnlyDiffs, setShowOnlyDiffs] = useState(false)
 
   const pairs = useMemo<ComparePair[]>(() => {
-    // Include all entries (QA + Codegen). Untagged entries (pre-dating modelId/systemPromptKey)
-    // are treated as qaWithSkill + high-power since those were the only variants run before
-    // baseline/low-power were added.
-    // Baseline slot: qaNoSkill OR codegenNoSkill — both represent "no skill context injected".
     const byQuestion = new Map<string, ComparePair>()
     for (const entry of entries) {
       const key = entry.result.question
@@ -909,26 +898,22 @@ export function CompareTable({
         })
       }
       const pair = byQuestion.get(key)!
-      const variant = entry.systemPromptKey ?? 'qaWithSkill'
 
-      if (variant === 'qaNoSkill' || variant === 'codegenNoSkill') {
-        if (!pair.baseline || entry.systemPromptKey) {
+      const variant = getVariant(entry)
+      // First-write-wins per lane. When the cache contains both an LLM and an
+      // agent result for the same question, iteration order decides which is
+      // shown; both rows still appear in list view distinguished by their badge.
+      if (variant === 'baseline' || variant === 'agent-baseline') {
+        if (!pair.baseline) {
           pair.baseline = entry
         }
-      } else {
-        // Distinguish high-power (skill) vs low-power by model ID
-        if (isHighPower(entry.result.modelId)) {
-          if (!pair.skill || entry.result.modelId) {
-            pair.skill = entry
-          }
-        } else {
-          if (!pair.lowPower || entry.result.modelId) {
-            pair.lowPower = entry
-          }
+      } else if (variant === 'skill' || variant === 'agent-skill') {
+        if (!pair.skill) {
+          pair.skill = entry
         }
       }
     }
-    return Array.from(byQuestion.values()).filter((p) => p.baseline || p.skill || p.lowPower)
+    return Array.from(byQuestion.values()).filter((p) => p.baseline || p.skill)
   }, [entries])
 
   const sorted = useMemo(() => {
@@ -1217,7 +1202,7 @@ export function CompareTable({
                 borderBottom: '1px solid var(--theme-elevation-150)',
                 display: 'grid',
                 gap: '0 12px',
-                gridTemplateColumns: '1fr 80px 60px 110px 130px 130px 130px 90px 32px',
+                gridTemplateColumns: '1fr 80px 60px 110px 130px 130px 90px 32px',
                 padding: '8px 12px',
               }}
             >
@@ -1259,18 +1244,6 @@ export function CompareTable({
               </span>
               <span
                 style={{
-                  color: 'var(--color-warning-500, #e8a838)',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Low Power
-              </span>
-              <span
-                style={{
-                  borderLeft: '2px solid var(--theme-elevation-200)',
                   color: 'var(--theme-elevation-500)',
                   fontSize: '0.7rem',
                   fontWeight: 700,
@@ -1349,7 +1322,7 @@ export function CompareTable({
                         cursor: 'pointer',
                         display: 'grid',
                         gap: '0 12px',
-                        gridTemplateColumns: '1fr 80px 60px 110px 130px 130px 130px 90px 32px',
+                        gridTemplateColumns: '1fr 80px 60px 110px 130px 130px 90px 32px',
                         padding: '10px 12px',
                         transition: 'background 0.1s',
                       }}
@@ -1389,8 +1362,7 @@ export function CompareTable({
                       <span>
                         <AudienceBadges audiences={pair.audience} />
                       </span>
-                      <ResultCell entry={pair.lowPower} />
-                      <ResultCell borderLeft entry={pair.baseline} />
+                      <ResultCell entry={pair.baseline} />
                       <ResultCell entry={pair.skill} />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <DeltaBadge delta={delta} glow={delta !== null && delta > 0.005} />

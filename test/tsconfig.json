@@ -4,9 +4,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-
     "noEmit": true,
-    "rootDir": ".",
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -29,9 +27,8 @@
         "name": "@payloadcms/typescript-plugin"
       }
     ],
-    "baseUrl": ".",
     "paths": {
-      "@payload-config": ["./_community/config.ts"]
+      "@payload-config": ["./tags/config.ts"]
     }
   },
   "exclude": [

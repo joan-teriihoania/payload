@@ -1,24 +1,29 @@
-import type { SuiteOptions } from './suites/index.js'
+import type { SuiteOptions } from './suites/types.js'
 
-import { MODELS } from './models.js'
+const DEFAULT_AGENT_MODEL = 'claude-opus-4-6'
 
-/**
- * Reads the EVAL_VARIANT env var and returns the matching SuiteOptions.
- *
- * EVAL_VARIANT=skill      (default) — high-power model, with-skill prompts
- * EVAL_VARIANT=baseline             — high-power model, no-skill prompts
- * EVAL_VARIANT=low-power            — low-power model (gpt-4o), with-skill prompts
- */
 export function resolveVariantOptions(): SuiteOptions {
   const variant = process.env.EVAL_VARIANT ?? 'skill'
+  const agentModel = process.env.EVAL_AGENT_MODEL ?? DEFAULT_AGENT_MODEL
 
-  if (variant === 'baseline') {
-    return { labelSuffix: ' (baseline)', systemPromptKey: 'qaNoSkill' }
+  switch (variant) {
+    case 'agent-claude-code':
+      return {
+        agentModel,
+        kind: 'claude-code',
+        labelSuffix: ` (claude-code/${agentModel})`,
+        skillInstall: 'embedded',
+      }
+    case 'agent-claude-code-baseline':
+      return {
+        agentModel,
+        kind: 'claude-code',
+        labelSuffix: ` (claude-code/${agentModel}, no skill)`,
+        skillInstall: 'none',
+      }
+    case 'baseline':
+      return { labelSuffix: ' (baseline)', systemPromptKey: 'codegenNoSkill' }
+    default:
+      return {}
   }
-
-  if (variant === 'low-power') {
-    return { labelSuffix: ' (low-power)', runnerModel: MODELS['openai:gpt-4o'] }
-  }
-
-  return {}
 }

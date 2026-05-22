@@ -4,14 +4,22 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+import type { RunnerKind, SkillInstallMode } from './runner/types.js'
+import type { Variant } from './variant.js'
+
+import { getVariant } from './variant.js'
+
 type CacheEntry = {
   result: {
+    assertionErrors?: string[]
     category: string
     changeDescription?: string
     modelId?: string
     pass: boolean
     question: string
+    runnerKind?: RunnerKind
     score?: number
+    skillInstall?: SkillInstallMode
     systemPromptKey?: string
     tscErrors?: string[]
   }
@@ -23,41 +31,28 @@ type SnapshotResult = {
   pass: boolean
   question: string
   score?: number
-  type: 'codegen' | 'qa'
+  type: 'codegen'
 }
 
-type Variant = 'baseline' | 'low-power' | 'skill'
-
-function isHighPowerModel(modelId: string | undefined): boolean {
-  if (!modelId) {
-    return true
-  }
-  return modelId.includes('gpt-5') || modelId.includes('o3') || modelId.includes('claude-3-5')
+const ENV_VARIANT_TO_INTERNAL: Record<string, Variant> = {
+  'agent-claude-code': 'agent-skill',
+  'agent-claude-code-baseline': 'agent-baseline',
+  baseline: 'baseline',
+  skill: 'skill',
 }
 
-function getEntryVariant(result: CacheEntry['result']): null | Variant {
-  const key = result.systemPromptKey
-  if (key === 'qaNoSkill' || key === 'codegenNoSkill') {
-    return 'baseline'
+export function setup() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY must be set to run eval tests')
   }
-  if (!isHighPowerModel(result.modelId)) {
-    return 'low-power'
-  }
-  if (!result.modelId) {
-    return null
-  }
-  return 'skill'
 }
 
-function isCodegenResult(result: CacheEntry['result']): boolean {
-  return result.changeDescription !== undefined || (result.tscErrors?.length ?? 0) > 0
-}
-
-export async function teardown() {
-  const variant = (process.env.EVAL_VARIANT ?? 'skill') as Variant
+export function teardown() {
+  const envVariant = process.env.EVAL_VARIANT ?? 'skill'
+  const variant = ENV_VARIANT_TO_INTERNAL[envVariant] ?? 'skill'
 
   const cacheDir = path.resolve(__dirname, 'eval-results/cache')
-  const runsDir = path.resolve(__dirname, 'eval-results/runs', variant)
+  const runsDir = path.resolve(__dirname, 'eval-results/runs', envVariant)
 
   let cacheFiles: string[]
   try {
@@ -74,7 +69,7 @@ export async function teardown() {
       if (raw.version !== 1) {
         continue
       }
-      const entryVariant = getEntryVariant(raw.result)
+      const entryVariant = getVariant(raw.result)
       if (entryVariant !== variant) {
         continue
       }
@@ -83,7 +78,7 @@ export async function teardown() {
         pass: raw.result.pass,
         question: raw.result.question,
         score: raw.result.score,
-        type: isCodegenResult(raw.result) ? 'codegen' : 'qa',
+        type: 'codegen',
       })
     } catch {
       // skip corrupt entries
@@ -95,10 +90,7 @@ export async function teardown() {
   }
 
   results.sort(
-    (a, b) =>
-      a.category.localeCompare(b.category) ||
-      a.type.localeCompare(b.type) ||
-      a.question.localeCompare(b.question),
+    (a, b) => a.category.localeCompare(b.category) || a.question.localeCompare(b.question),
   )
 
   mkdirSync(runsDir, { recursive: true })
