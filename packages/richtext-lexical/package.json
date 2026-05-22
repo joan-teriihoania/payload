@@ -38,6 +38,11 @@
       "types": "./src/exports/react/index.ts",
       "default": "./src/exports/react/index.ts"
     },
+    "./react-native": {
+      "import": "./src/exports/react-native/index.ts",
+      "types": "./src/exports/react-native/index.ts",
+      "default": "./src/exports/react-native/index.ts"
+    },
     "./html": {
       "import": "./src/exports/html/index.ts",
       "types": "./src/exports/html/index.ts",
@@ -422,7 +427,13 @@
     "@payloadcms/next": "workspace:*",
     "payload": "workspace:*",
     "react": "^19.0.1 || ^19.1.2 || ^19.2.1",
-    "react-dom": "^19.0.1 || ^19.1.2 || ^19.2.1"
+    "react-dom": "^19.0.1 || ^19.1.2 || ^19.2.1",
+    "react-native": ">=0.72.0"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0"
@@ -443,6 +454,11 @@
         "import": "./dist/exports/react/index.js",
         "types": "./dist/exports/react/index.d.ts",
         "default": "./dist/exports/react/index.js"
+      },
+      "./react-native": {
+        "import": "./dist/exports/react-native/index.js",
+        "types": "./dist/exports/react-native/index.d.ts",
+        "default": "./dist/exports/react-native/index.js"
       },
       "./html": {
         "import": "./dist/exports/html/index.js",
